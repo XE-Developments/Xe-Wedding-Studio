@@ -1,0 +1,80 @@
+XE MINIMAL GALLERY — SINGLE R2 BUCKET QUICK GUIDE
+
+BUCKET
+Name: xe-gallery
+Storage class: Standard
+Access: Private
+No secondary bucket. No overflow routing.
+
+1. CLOUDFLARE
+- Sign in at https://dash.cloudflare.com/
+- Open Storage & databases > R2 Object Storage.
+- Complete the R2 subscription checkout if prompted. Review any payment authorization/amount before approving.
+- Create bucket: xe-gallery
+- Choose Standard storage class.
+- Keep it private; do not enable public access.
+
+2. R2 API TOKEN
+- R2 Overview > Manage R2 API Tokens > Create API token.
+- Permission: Object Read & Write.
+- Restrict to specific bucket: xe-gallery only.
+- Create token; copy Access Key ID and Secret Access Key now (secret cannot be viewed again).
+- Copy Account ID.
+- Endpoint: https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
+
+3. SUPABASE
+- Back up the project.
+- New project: run backend/supabase-schema.sql in SQL Editor.
+- Existing project: run:
+
+alter table public.gallery_photos
+add column if not exists storage_bucket text not null default 'b2';
+
+grant usage on schema public to service_role;
+grant select, insert, update, delete on table public.gallery_photos to service_role;
+grant select, insert, update, delete on table public.gallery_settings to service_role;
+
+- Old rows stay tagged b2. Do not mark them r2 until their actual objects have been copied to R2.
+
+4. RENDER BACKEND
+Root Directory: backend
+Build: npm install
+Start: npm start
+
+Set these Render Environment variables:
+NODE_ENV=production
+ALLOWED_ORIGIN=https://xe-developments.github.io
+ADMIN_USERNAME=your-admin-username
+ADMIN_PASSWORD=your-strong-admin-password
+JWT_SECRET=at-least-40-random-characters
+SUPABASE_URL=your-project-url
+SUPABASE_SERVICE_ROLE_KEY=your-server-side-service-role-secret
+R2_ACCOUNT_ID=your-cloudflare-account-id
+R2_ACCESS_KEY_ID=your-r2-access-key-id
+R2_SECRET_ACCESS_KEY=your-r2-secret-access-key
+R2_BUCKET=xe-gallery
+MAX_FILE_SIZE_MB=100
+MIN_IMAGE_PIXELS=6000000
+
+If old photos remain in B2, also retain B2_ENDPOINT, B2_REGION, B2_BUCKET, B2_KEY_ID, B2_APPLICATION_KEY. Do not remove old B2 settings until old images are migrated or removed.
+
+5. GITHUB PAGES
+- Keep index.html, studio.html, config.js and assets/ at repository root.
+- In config.js, replace YOUR-RENDER-SERVICE with the actual Render service hostname.
+- GitHub repository > Settings > Pages > Deploy from a branch > main > /(root).
+- Gallery URL: https://xe-developments.github.io/xe-minimal-gallery/
+- Admin URL: https://xe-developments.github.io/xe-minimal-gallery/studio.html
+
+6. TEST
+- Render /health should return {"ok":true}.
+- Render /api/status should say Cloudflare R2 single bucket + Supabase.
+- Upload a disposable test photo (minimum 6 MP, maximum 100 MB).
+- Confirm original and gallery/thumbs/*.webp exist in R2.
+- Test gallery display, download, replacement and individual deletion.
+- Test Delete All only with disposable test photos. It deletes objects under gallery/ in the configured R2 bucket and, if configured, the legacy B2 gallery/ prefix. It does not empty unrelated bucket paths.
+
+IMPORTANT
+- R2's free monthly allowance is 10 GB-month Standard storage, 1 million Class A requests and 10 million Class B requests; egress is free. Overages are billed. Verify current rates at https://developers.cloudflare.com/r2/pricing/.
+- R2 must be activated through Cloudflare's subscription checkout before creating API tokens. A free usage allowance does not guarantee that activation can be completed without a payment method.
+- Never place secrets in GitHub or send them in chat.
+- This ZIP has passed local JavaScript syntax checks but has not been connected to your accounts or end-to-end tested. Test with disposable photos before using Delete All on real content.
